@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // CV en PDF hasta 4 MB (Vercel admite 4,5 MB por petición)
+  experimental: { serverActions: { bodySizeLimit: "4.2mb" } },
   turbopack: {
     rules: {
       "*.css": {

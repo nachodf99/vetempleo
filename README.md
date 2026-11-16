@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VetEmpleo
 
-## Getting Started
+Plataforma de empleo veterinario: veterinarios, ATV y auxiliares crean su CV y se postulan; clínicas, hospitales
+y empresas publican ofertas **con las condiciones obligatorias** que LinkedIn e InfoJobs no exigen: rango salarial
+real, horas y horario, guardias (cuántas y cómo se pagan), fines de semana, convenio, vacaciones, periodo de prueba,
+plantilla, equipamiento, fases del proceso y plazo de respuesta.
 
-First, run the development server:
+## Stack
+- Next.js 16 (App Router, Server Actions) + Tailwind 4
+- Supabase (Postgres + Auth + Storage para los CV en PDF), con RLS
+- Vercel
 
+## Ramas y entornos
+| Rama | Entorno Vercel | Uso |
+|------|----------------|-----|
+| `main` | Production | Lo que ven los usuarios |
+| `dev`  | Preview | Desarrollo; cada push genera una URL de preview |
+
+Flujo: trabaja en `dev` (o ramas `feature/*` → PR a `dev`), y cuando esté probado, PR `dev` → `main`.
+
+## Desarrollo local
 ```bash
+cp .env.example .env.local   # rellena URL y publishable key de Supabase
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Base de datos
+Las migraciones están en `supabase/migrations/`. Reglas clave a nivel de base de datos:
+- Una oferta no se puede guardar sin los campos obligatorios; el salario máximo ≤ 2× el mínimo; si hay guardias
+  hay que explicar cuántas y cómo se pagan; vacaciones ≥ 22 días; contrato no indefinido ⇒ duración.
+- Un candidato solo es visible para las empresas a cuyas ofertas se ha postulado (también su CV).
+- La empresa solo puede cambiar el estado y la nota de una candidatura.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Roles
+Se elige al registrarse (`veterinario` o `empresa`) y se guarda en `profiles.role`.
