@@ -46,6 +46,7 @@ async function Cabecera() {
               <Link href="/perfil" className={enlace}>Mi centro</Link>
             </>
           )}
+          {s && <Link href="/cuenta" className={enlace}>Cuenta</Link>}
           {s && (
             <form action={cerrarSesion}>
               <button className={enlace}>Salir</button>
@@ -64,7 +65,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Cabecera />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
         <footer className="border-t border-stone-200 py-6 text-center text-xs text-stone-500">
-          VetEmpleo · Empleo veterinario transparente
+          VetEmpleo · Empleo veterinario transparente ·{" "}
+          <Link href="/privacidad" className="hover:underline">Privacidad</Link> ·{" "}
+          <Link href="/aviso-legal" className="hover:underline">Aviso legal</Link>
         </footer>
       </body>
     </html>

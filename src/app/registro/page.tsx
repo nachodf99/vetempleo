@@ -27,6 +27,13 @@ export default async function Registro({ searchParams }: PageProps<"/registro">)
         </fieldset>
         <Campo label="Email" name="email" type="email" required autoComplete="email" />
         <Campo label="Contraseña" name="password" type="password" required minLength={8} hint="mín. 8 caracteres" autoComplete="new-password" />
+        <label className="flex items-start gap-2 text-sm text-stone-700">
+          <input type="checkbox" name="privacidad" required className="mt-1 accent-teal-700" />
+          <span>
+            He leído y acepto la <Link href="/privacidad" target="_blank" className="text-teal-700 underline">política de privacidad</Link> y
+            las <Link href="/aviso-legal" target="_blank" className="text-teal-700 underline">condiciones de uso</Link>.
+          </span>
+        </label>
         <Boton type="submit">Crear cuenta</Boton>
       </form>
       <p className="mt-4 text-sm text-stone-600">

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient, getSesion } from "@/lib/supabase/server";
-import { cambiarEstadoCandidatura, cambiarEstadoOferta } from "@/app/empresa/actions";
-import { AREAS, ESPECIES, ESTADOS_CANDIDATURA, PERFILES, etiqueta, euros } from "@/lib/catalogos";
-import { Boton } from "@/components/form";
+import { cambiarEstadoCandidatura, cambiarEstadoOferta, renovarOferta } from "@/app/empresa/actions";
+import { AREAS, ESPECIES, ESTADOS_CANDIDATURA, PERFILES, etiqueta, euros, hoyISO } from "@/lib/catalogos";
+import { Aviso, Boton } from "@/components/form";
 import { Chip } from "@/components/oferta-card";
+
+const fecha = (d: string) => new Date(d).toLocaleDateString("es-ES");
 
 type Exp = { id: string; puesto: string; centro: string; fecha_inicio: string; fecha_fin: string | null };
 type Cand = {
@@ -16,14 +18,16 @@ type Cand = {
   profiles: { email: string | null } | null;
 };
 
-export default async function CandidatosOferta({ params }: PageProps<"/empresa/ofertas/[id]">) {
+export default async function CandidatosOferta({ params, searchParams }: PageProps<"/empresa/ofertas/[id]">) {
   const { id } = await params;
+  const sp = await searchParams;
   const s = await getSesion();
   if (!s || s.role !== "empresa") redirect("/login");
   const supabase = await createClient();
-  const { data: o } = await supabase.from("ofertas").select("id, titulo, estado, empresa_id").eq("id", id).maybeSingle();
+  const { data: o } = await supabase.from("ofertas").select("id, titulo, estado, empresa_id, expira_el").eq("id", id).maybeSingle();
   if (!o || o.empresa_id !== s.userId) notFound();
 
+  const caducada = o.expira_el < hoyISO();
   const { data } = await supabase
     .from("candidaturas")
     .select("id, estado, carta, nota_empresa, created_at, candidatos(*, profiles(email), experiencias(id, puesto, centro, fecha_inicio, fecha_fin))")
@@ -39,12 +43,28 @@ export default async function CandidatosOferta({ params }: PageProps<"/empresa/o
           <h1 className="text-2xl font-bold">{o.titulo}</h1>
           <p className="text-stone-600">{lista.length} candidatura{lista.length === 1 ? "" : "s"} · <Link className="text-teal-700" href={`/ofertas/${o.id}`}>ver oferta</Link></p>
         </div>
-        <form action={cambiarEstadoOferta}>
-          <input type="hidden" name="id" value={o.id} />
-          <input type="hidden" name="estado" value={o.estado === "publicada" ? "cerrada" : "publicada"} />
-          <Boton variante="secundario">{o.estado === "publicada" ? "Cerrar oferta" : "Publicar oferta"}</Boton>
-        </form>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/empresa/ofertas/${o.id}/editar`} className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-stone-50">Editar</Link>
+          <Link href={`/empresa/ofertas/nueva?desde=${o.id}`} className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-stone-50">Duplicar</Link>
+          <form action={renovarOferta}>
+            <input type="hidden" name="id" value={o.id} />
+            <Boton variante="secundario">Renovar 60 días</Boton>
+          </form>
+          <form action={cambiarEstadoOferta}>
+            <input type="hidden" name="id" value={o.id} />
+            <input type="hidden" name="estado" value={o.estado === "publicada" ? "cerrada" : "publicada"} />
+            <Boton variante="secundario">{o.estado === "publicada" ? "Cerrar oferta" : "Publicar oferta"}</Boton>
+          </form>
+        </div>
       </div>
+      <p className="text-sm text-stone-600">
+        {caducada
+          ? <span className="font-semibold text-amber-700">Caducó el {fecha(o.expira_el)}: ya no es visible. Renuévala para volver a publicarla.</span>
+          : o.estado === "publicada"
+            ? <>Visible hasta el {fecha(o.expira_el)}.</>
+            : <>Estado: {o.estado}.</>}
+      </p>
+      <Aviso ok={sp.ok as string} />
 
       <div className="space-y-4">
         {lista.map((c) => {

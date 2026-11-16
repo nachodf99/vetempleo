@@ -1,9 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { emailCambioEstado } from "@/lib/email";
 import { revalidatePath } from "next/cache";
 import { createClient, getSesion } from "@/lib/supabase/server";
-import { bool, errorHumano, lista, num, q, txt } from "@/lib/formdata";
+import { errorHumano, q, txt } from "@/lib/formdata";
+import { hoyISO } from "@/lib/catalogos";
+import { datosOferta, validarOferta, valoresDesdeForm, type EstadoForm } from "@/lib/oferta";
 
 async function empresaActual() {
   const s = await getSesion();
@@ -11,63 +15,52 @@ async function empresaActual() {
   return s;
 }
 
-export async function crearOferta(f: FormData) {
+function fallo(prev: EstadoForm, f: FormData, msg: string, campo: string | null = null): EstadoForm {
+  return { error: msg, campo, valores: valoresDesdeForm(f), intento: prev.intento + 1 };
+}
+
+export async function crearOferta(prev: EstadoForm, f: FormData): Promise<EstadoForm> {
   const s = await empresaActual();
   const supabase = await createClient();
-
   const { data: emp } = await supabase.from("empresas").select("id").eq("id", s.userId).maybeSingle();
   if (!emp) redirect(`/perfil?error=${q("Antes de publicar, completa los datos de tu centro.")}`);
 
-  const guardias = bool(f, "guardias");
-  const oferta = {
-    empresa_id: s.userId,
-    estado: f.get("borrador") ? "borrador" : "publicada",
-    titulo: txt(f, "titulo"),
-    puesto: txt(f, "puesto"),
-    area: txt(f, "area"),
-    especies: lista(f, "especies"),
-    provincia: txt(f, "provincia"),
-    municipio: txt(f, "municipio"),
-    modalidad: txt(f, "modalidad"),
-    tipo_contrato: txt(f, "tipo_contrato"),
-    duracion_meses: num(f, "duracion_meses"),
-    periodo_prueba_meses: num(f, "periodo_prueba_meses"),
-    salario_min: num(f, "salario_min"),
-    salario_max: num(f, "salario_max"),
-    salario_variable: txt(f, "salario_variable"),
-    convenio: txt(f, "convenio"),
-    pagas: num(f, "pagas") ?? 14,
-    jornada: txt(f, "jornada"),
-    horas_semanales: num(f, "horas_semanales"),
-    horario: txt(f, "horario"),
-    fines_semana: txt(f, "fines_semana"),
-    guardias,
-    guardias_detalle: guardias ? txt(f, "guardias_detalle") : null,
-    guardias_retribucion: guardias ? txt(f, "guardias_retribucion") : null,
-    nocturnidad: bool(f, "nocturnidad") ?? false,
-    dias_vacaciones: num(f, "dias_vacaciones"),
-    experiencia_min_anios: num(f, "experiencia_min_anios") ?? 0,
-    colegiacion_requerida: bool(f, "colegiacion_requerida") ?? true,
-    carnet_requerido: bool(f, "carnet_requerido") ?? false,
-    requisitos: txt(f, "requisitos"),
-    idiomas: txt(f, "idiomas"),
-    num_veterinarios: num(f, "num_veterinarios"),
-    num_atv: num(f, "num_atv"),
-    equipamiento: lista(f, "equipamiento"),
-    formacion_anual_eur: num(f, "formacion_anual_eur"),
-    cuota_colegial_pagada: bool(f, "cuota_colegial_pagada") ?? false,
-    seguro_rc_pagado: bool(f, "seguro_rc_pagado") ?? false,
-    beneficios: txt(f, "beneficios"),
-    descripcion: txt(f, "descripcion"),
-    fases_seleccion: txt(f, "fases_seleccion"),
-    plazo_respuesta_dias: num(f, "plazo_respuesta_dias"),
-    fecha_incorporacion: txt(f, "fecha_incorporacion"),
-  };
+  const borrador = !!f.get("borrador");
+  const v = validarOferta(f);
+  if (v) return fallo(prev, f, v.msg, v.campo);
 
-  const { data, error } = await supabase.from("ofertas").insert(oferta).select("id").single();
-  if (error) redirect(`/empresa/ofertas/nueva?error=${q(errorHumano(error.message))}`);
+  const { data, error } = await supabase
+    .from("ofertas")
+    .insert({ ...datosOferta(f), empresa_id: s.userId, estado: borrador ? "borrador" : "publicada" })
+    .select("id")
+    .single();
+  if (error) return fallo(prev, f, errorHumano(error.message));
   revalidatePath("/ofertas");
-  redirect(`/ofertas/${data.id}?ok=${q(oferta.estado === "borrador" ? "Guardada como borrador." : "Oferta publicada.")}`);
+  redirect(`/ofertas/${data.id}?ok=${q(borrador ? "Guardada como borrador." : "Oferta publicada. Estará visible 60 días.")}`);
+}
+
+export async function actualizarOferta(id: string, prev: EstadoForm, f: FormData): Promise<EstadoForm> {
+  await empresaActual();
+  const v = validarOferta(f);
+  if (v) return fallo(prev, f, v.msg, v.campo);
+  const supabase = await createClient();
+  const { error } = await supabase.from("ofertas").update(datosOferta(f)).eq("id", id);
+  if (error) return fallo(prev, f, errorHumano(error.message));
+  revalidatePath("/ofertas");
+  revalidatePath(`/ofertas/${id}`);
+  redirect(`/ofertas/${id}?ok=${q("Oferta actualizada.")}`);
+}
+
+export async function renovarOferta(f: FormData) {
+  await empresaActual();
+  const supabase = await createClient();
+  const id = String(f.get("id"));
+  const hoy = new Date();
+  hoy.setDate(hoy.getDate() + 60);
+  await supabase.from("ofertas").update({ expira_el: hoy.toISOString().slice(0, 10), estado: "publicada" }).eq("id", id);
+  revalidatePath("/empresa");
+  revalidatePath("/ofertas");
+  redirect(`/empresa/ofertas/${id}?ok=${q("Oferta renovada 60 días más.")}`);
 }
 
 export async function cambiarEstadoOferta(f: FormData) {
@@ -75,7 +68,17 @@ export async function cambiarEstadoOferta(f: FormData) {
   const supabase = await createClient();
   const id = String(f.get("id"));
   const estado = String(f.get("estado"));
-  await supabase.from("ofertas").update({ estado }).eq("id", id);
+  const cambios: Record<string, string> = { estado };
+  if (estado === "publicada") {
+    // Reabrir una oferta caducada la renueva 60 días
+    const { data } = await supabase.from("ofertas").select("expira_el").eq("id", id).single();
+    if (data && data.expira_el < hoyISO()) {
+      const d = new Date();
+      d.setDate(d.getDate() + 60);
+      cambios.expira_el = d.toISOString().slice(0, 10);
+    }
+  }
+  await supabase.from("ofertas").update(cambios).eq("id", id);
   revalidatePath("/empresa");
   revalidatePath("/ofertas");
   redirect(`/empresa/ofertas/${id}`);
@@ -86,10 +89,25 @@ export async function cambiarEstadoCandidatura(f: FormData) {
   const supabase = await createClient();
   const id = String(f.get("id"));
   const oferta = String(f.get("oferta_id"));
-  await supabase
+  const estado = String(f.get("estado"));
+  const { data: antes } = await supabase
     .from("candidaturas")
-    .update({ estado: String(f.get("estado")), nota_empresa: txt(f, "nota_empresa") })
-    .eq("id", id);
+    .select("estado, ofertas(titulo, empresas(nombre)), candidatos(profiles(email))")
+    .eq("id", id)
+    .single();
+  await supabase.from("candidaturas").update({ estado, nota_empresa: txt(f, "nota_empresa") }).eq("id", id);
+
+  if (antes && antes.estado !== estado) {
+    type Fila = { ofertas: { titulo: string; empresas: { nombre: string } | null } | null; candidatos: { profiles: { email: string | null } | null } | null };
+    const a = antes as unknown as Fila;
+    after(() =>
+      emailCambioEstado(a.candidatos?.profiles?.email ?? null, {
+        oferta: a.ofertas?.titulo ?? "",
+        empresa: a.ofertas?.empresas?.nombre ?? "El centro",
+        estado,
+      }),
+    );
+  }
   revalidatePath(`/empresa/ofertas/${oferta}`);
   redirect(`/empresa/ofertas/${oferta}#c-${id}`);
 }

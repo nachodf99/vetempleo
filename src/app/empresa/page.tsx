@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient, getSesion } from "@/lib/supabase/server";
 import { Aviso } from "@/components/form";
 import { Chip } from "@/components/oferta-card";
-import { euros } from "@/lib/catalogos";
+import { euros, hoyISO } from "@/lib/catalogos";
 
 export default async function PanelEmpresa({ searchParams }: PageProps<"/empresa">) {
   const sp = await searchParams;
@@ -15,11 +15,12 @@ export default async function PanelEmpresa({ searchParams }: PageProps<"/empresa
     supabase.from("empresas").select("nombre").eq("id", s.userId).maybeSingle(),
     supabase
       .from("ofertas")
-      .select("id, titulo, estado, salario_min, salario_max, municipio, created_at, candidaturas(estado)")
+      .select("id, titulo, estado, expira_el, salario_min, salario_max, municipio, created_at, candidaturas(estado)")
       .eq("empresa_id", s.userId)
       .order("created_at", { ascending: false }),
   ]);
   if (!emp) redirect(`/perfil?error=${encodeURIComponent("Completa los datos de tu centro para empezar.")}`);
+  const hoy = hoyISO();
 
   return (
     <div className="space-y-6">
@@ -48,6 +49,7 @@ export default async function PanelEmpresa({ searchParams }: PageProps<"/empresa
             {(ofertas ?? []).map((o) => {
               const c = (o.candidaturas ?? []) as { estado: string }[];
               const nuevos = c.filter((x) => x.estado === "enviada").length;
+              const caducada = o.estado === "publicada" && o.expira_el < hoy;
               return (
                 <tr key={o.id} className="hover:bg-stone-50">
                   <td className="px-4 py-3">
@@ -55,7 +57,8 @@ export default async function PanelEmpresa({ searchParams }: PageProps<"/empresa
                     <p className="text-xs text-stone-500">{o.municipio} · {new Date(o.created_at).toLocaleDateString("es-ES")}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <Chip tono={o.estado === "publicada" ? "verde" : "gris"}>{o.estado}</Chip>
+                    {caducada ? <Chip tono="ambar">caducada</Chip> : <Chip tono={o.estado === "publicada" ? "verde" : "gris"}>{o.estado}</Chip>}
+                    {!caducada && o.estado === "publicada" && <p className="mt-1 text-xs text-stone-500">hasta {new Date(o.expira_el).toLocaleDateString("es-ES")}</p>}
                   </td>
                   <td className="px-4 py-3">{euros(o.salario_min)} – {euros(o.salario_max)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{c.length}</td>

@@ -137,3 +137,5 @@ export const euros = (n: number | null | undefined) =>
 export function diasDesde(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 }
+
+export const hoyISO = () => new Date().toISOString().slice(0, 10);

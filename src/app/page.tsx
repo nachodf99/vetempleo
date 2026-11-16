@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hoyISO } from "@/lib/catalogos";
+import { Aviso } from "@/components/form";
 import { CAMPOS_RESUMEN, OfertaCard, type OfertaResumen } from "@/components/oferta-card";
 
 const OBLIGATORIOS = [
@@ -12,18 +14,21 @@ const OBLIGATORIOS = [
   ["Proceso y plazo", "Fases de selección y compromiso de respuesta en días."],
 ];
 
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const sp = await searchParams;
   const supabase = await createClient();
   const { data } = await supabase
     .from("ofertas")
     .select(CAMPOS_RESUMEN)
     .eq("estado", "publicada")
+    .gte("expira_el", hoyISO())
     .order("created_at", { ascending: false })
     .limit(5);
   const ofertas = (data ?? []) as unknown as OfertaResumen[];
 
   return (
     <div className="space-y-16">
+      {sp.borrada && <Aviso ok="Tu cuenta y todos tus datos se han eliminado." />}
       <section className="grid items-center gap-10 py-6 lg:grid-cols-2">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wider text-teal-700">Empleo veterinario</p>

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AREAS, CONTRATOS, JORNADAS, PROVINCIAS, PUESTOS } from "@/lib/catalogos";
 import { Boton, Campo, Selector } from "@/components/form";
+import { hoyISO } from "@/lib/catalogos";
 import { CAMPOS_RESUMEN, OfertaCard, type OfertaResumen } from "@/components/oferta-card";
 
 export const metadata = { title: "Ofertas de empleo veterinario · VetEmpleo" };
@@ -14,6 +15,7 @@ export default async function Ofertas({ searchParams }: PageProps<"/ofertas">) {
     .from("ofertas")
     .select(CAMPOS_RESUMEN)
     .eq("estado", "publicada")
+    .gte("expira_el", hoyISO())
     .order("created_at", { ascending: false })
     .limit(100);
   if (p("provincia")) query = query.eq("provincia", p("provincia")!);

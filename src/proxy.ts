@@ -24,7 +24,7 @@ export async function proxy(request: NextRequest) {
   // Refresca el token si ha caducado
   const { data } = await supabase.auth.getUser();
 
-  const privada = ["/perfil", "/empresa", "/mis-candidaturas"].some((p) =>
+  const privada = ["/perfil", "/empresa", "/mis-candidaturas", "/cuenta"].some((p) =>
     request.nextUrl.pathname.startsWith(p),
   );
   if (privada && !data.user) {

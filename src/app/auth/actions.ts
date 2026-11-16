@@ -26,6 +26,8 @@ export async function registrarse(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const role = formData.get("role") === "empresa" ? "empresa" : "veterinario";
   if (password.length < 8) redirect(`/registro?error=${q("La contraseña debe tener al menos 8 caracteres.")}`);
+  if (formData.get("privacidad") !== "on")
+    redirect(`/registro?error=${q("Debes aceptar la política de privacidad y las condiciones de uso.")}`);
 
   const h = await headers();
   const origin = h.get("origin") ?? `https://${h.get("host")}`;
@@ -33,7 +35,7 @@ export async function registrarse(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { role }, emailRedirectTo: `${origin}/auth/callback?next=/perfil` },
+    options: { data: { role, acepta_privacidad_at: new Date().toISOString() }, emailRedirectTo: `${origin}/auth/callback?next=/perfil` },
   });
   if (error) redirect(`/registro?error=${q(error.message)}`);
   if (data.session) redirect("/perfil");
